@@ -176,7 +176,7 @@ def sign_in():
                     payload = {
                         'sub': user_id,
                         'iat': datetime.utcnow(),
-                        'exp': datetime.utcnow() + JWT_EXPIRATION_DELTA
+                        'exp': (datetime.utcnow() + JWT_EXPIRATION_DELTA),
                     }
 
                     # Генерация токена
