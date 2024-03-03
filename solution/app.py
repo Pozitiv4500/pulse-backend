@@ -228,7 +228,7 @@ def me_profile():
                     }
                     return jsonify(profile), 200
                 else:
-                    return jsonify({'error': 'User not found'}), 404
+                    return jsonify({'error': 'User not found'}), 406
             else:
                 return jsonify({'error': 'Invalid token'}), 401
         else:
@@ -242,8 +242,10 @@ def me_profile():
             cursor = conn.cursor()
             cursor.execute("SELECT user_id FROM tokens WHERE token = %s", (token,))
             user_id = cursor.fetchone()
+
             if user_id:
                 user_id = user_id[0]
+
                 data = request.json
                 # Проверяем, переданы ли данные для обновления
                 if data:
@@ -259,7 +261,7 @@ def me_profile():
                             'country_code': updated_user_data[2],
                             'is_public': updated_user_data[3],
                             'phone': updated_user_data[4],
-                            'image': updated_user_data[5]
+                            'image': updated_user_data[5],
                         }
                         conn.commit()
                         cursor.close()
@@ -268,7 +270,7 @@ def me_profile():
                     else:
                         cursor.close()
                         conn.close()
-                        return jsonify({'error': 'User not found'}), 404
+                        return jsonify({'error': 'User not found'}), 405
                 else:
                     return jsonify({'error': 'No data provided'}), 400
             else:
