@@ -96,7 +96,19 @@ def register():
         conn.rollback()
         return jsonify({'error': 'Database error', 'details': str(e)}), 400
 
-    return jsonify({'profile': {'id': user_id, 'login': data['login'], 'email': data['email'], 'countryCode': data['countryCode'], 'isPublic': data['isPublic']}}), 201
+    # Формирование ответа
+    profile_data = {
+        'login': data['login'],
+        'email': data['email'],
+        'countryCode': data['countryCode'],
+        'isPublic': data['isPublic']
+    }
+    if 'phone' in data:
+        profile_data['phone'] = data['phone']
+    if 'image' in data:
+        profile_data['image'] = data['image']
+
+    return jsonify({'profile': profile_data}), 201
 
 
 if __name__ == '__main__':
