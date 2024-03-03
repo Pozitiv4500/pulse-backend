@@ -38,7 +38,7 @@ def get_countries():
     region = request.args.getlist('region')
     if region:
         placeholders = ','.join(['%s' for _ in region])
-        query = f"SELECT name, alpha2, alpha3, region FROM countries WHERE region IN ({placeholders})"
+        query = f"SELECT name, alpha2, alpha3, region FROM countries WHERE region IN ({placeholders}) ORDER BY alpha2"
         cursor.execute(query, region)
     else:
         cursor.execute("SELECT name, alpha2, alpha3, region FROM countries")
