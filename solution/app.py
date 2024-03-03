@@ -36,6 +36,14 @@ CREATE TABLE IF NOT EXISTS tokens (
     expires_at TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
+CREATE TABLE IF NOT EXISTS friends (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    friend_login VARCHAR(30) NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT unique_friend UNIQUE (user_id, friend_login)
+);
 '''
 
 # Выполнение SQL-запроса
@@ -226,8 +234,8 @@ def me_profile():
                     profile = {
                         'login': user_data[0],
                         'email': user_data[1],
-                        'country_code': user_data[2],
-                        'is_public': user_data[3],
+                        'countryCode': user_data[2],
+                        'isPublic': user_data[3],
                         'phone': user_data[4],
                         'image': user_data[5]
                     }
@@ -270,8 +278,8 @@ def me_profile():
                         updated_profile = {
                             'login': updated_user_data[0],
                             'email': updated_user_data[1],
-                            'country_code': updated_user_data[2],
-                            'is_public': updated_user_data[3],
+                            'countryCode': updated_user_data[2],
+                            'isPublic': updated_user_data[3],
                             'phone': updated_user_data[4],
                             'image': updated_user_data[5],
                         }
@@ -296,6 +304,239 @@ def me_profile():
             cursor.close()
             conn.close()
             return jsonify({'error': 'Token is missing'}), 401
+
+@app.route('/api/profiles/<login>', methods=['GET'])
+def get_profile(login):
+    try:
+        conn = psycopg2.connect(POSTGRES_CONN)
+        cursor = conn.cursor()
+
+        # Получение данных профиля по логину
+        cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE login = %s", (login,))
+        user_data = cursor.fetchone()
+
+        #ДОПИСАТЬ ФУНКЦИОНАЛ С ДРУЗЬЯМИ!!!
+
+        if user_data:
+            profile = {
+                'login': user_data[0],
+                'email': user_data[1],
+                'countryCode': user_data[2],
+                'isPublic': user_data[3],
+                'phone': user_data[4],
+                'image': user_data[5]
+            }
+
+            # Проверка настройки приватности профиля
+            if user_data[3]:  # Если профиль публичен
+                cursor.close()
+                conn.close()
+                return jsonify(profile), 200
+            else:
+                # Если профиль закрыт, возвращаем ошибку доступа
+                cursor.close()
+                conn.close()
+                return jsonify({'error': 'Access denied. Profile is private.'}), 403
+        else:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'User not found'}), 404
+    except psycopg2.Error as e:
+        print("Database error:", e)
+        return jsonify({'error': 'Database error'}), 500
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({'error': 'Internal server error'}), 500
+
+def get_user_login_by_id(user_id):
+    # Подключение к базе данных
+    conn = psycopg2.connect(POSTGRES_CONN)
+    cursor = conn.cursor()
+
+    # Выполнение SQL-запроса для получения логина по заданному идентификатору пользователя
+    cursor.execute("SELECT login FROM users WHERE id = %s", (user_id,))
+    login = cursor.fetchone()
+
+    # Закрытие курсора и соединения
+    cursor.close()
+    conn.close()
+
+    # Возврат логина, если он найден, в противном случае возврат None
+    return login[0] if login else None
+def is_friend(user_id, friend_login):
+    # Подключение к базе данных
+    conn = psycopg2.connect(POSTGRES_CONN)
+    cursor = conn.cursor()
+
+    # Выполнение SQL-запроса для проверки, является ли пользователь другом текущего пользователя
+    cursor.execute("SELECT EXISTS(SELECT 1 FROM friends WHERE user_id = %s AND friend_login = %s)", (user_id, friend_login))
+
+    is_friend = cursor.fetchone()[0]
+
+    # Закрытие курсора и соединения
+    cursor.close()
+    conn.close()
+
+    # Возврат результата проверки
+    return is_friend
+
+def is_user_exist(login):
+    # Подключение к базе данных
+    conn = psycopg2.connect(POSTGRES_CONN)
+    cursor = conn.cursor()
+
+    # Выполнение SQL-запроса для проверки существования пользователя с заданным логином
+    cursor.execute("SELECT EXISTS(SELECT 1 FROM users WHERE login = %s)", (login,))
+    user_exists = cursor.fetchone()[0]
+
+    # Закрытие курсора и соединения
+    cursor.close()
+    conn.close()
+
+    # Возврат результата проверки
+    return user_exists
+
+@app.route('/api/friends/add', methods=['POST'])
+def add_friend():
+    try:
+        conn = psycopg2.connect(POSTGRES_CONN)
+        cursor = conn.cursor()
+
+        # Получение логина текущего пользователя по токену
+        token = request.headers.get('Authorization')
+        if token:
+            token = token.split('Bearer ')[1]
+            cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+            user_data = cursor.fetchone()
+            if user_data:
+                user_id, created_at = user_data
+                if is_token_valid(created_at):
+
+                    data = request.json
+                    friend_login = data.get('login')
+
+                    # Проверка, что пользователь не добавляет сам себя в друзья
+                    if friend_login == get_user_login_by_id(user_id):
+                        return jsonify({'status': 'ok'}), 200
+
+                    # Проверка, что пользователь с таким логином существует
+                    if not is_user_exist(friend_login):
+                        return jsonify({'error': 'User not found'}), 404
+
+                    # Проверка, что пользователь уже не является другом
+                    if is_friend(user_id, friend_login):
+                        return jsonify({'status': 'ok'}), 200
+
+                    # Добавление друга
+                    cursor.execute("INSERT INTO friends (user_id, friend_login, added_at) VALUES (%s, %s, NOW())", (user_id, friend_login))
+                    conn.commit()
+
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'status': 'ok'}), 200
+                else:
+                    return jsonify({'error': 'Token expired'}), 401
+            else:
+                return jsonify({'error': 'Invalid token'}), 401
+        else:
+            return jsonify({'error': 'Token is missing'}), 401
+    except psycopg2.Error as e:
+        print("Database error:", e)
+        return jsonify({'error': 'Database error'}), 500
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({'error': 'Internal server error'}), 500
+
+# Эндпоинт для удаления пользователя из друзей
+@app.route('/api/friends/remove', methods=['POST'])
+def remove_friend():
+    try:
+        conn = psycopg2.connect(POSTGRES_CONN)
+        cursor = conn.cursor()
+
+        # Получение логина текущего пользователя по токену
+        token = request.headers.get('Authorization')
+        if token:
+            token = token.split('Bearer ')[1]
+            cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+            user_data = cursor.fetchone()
+            if user_data:
+                user_id, created_at = user_data
+                if is_token_valid(created_at):
+                    data = request.json
+                    friend_login = data.get('login')
+
+                    # Удаление друга
+                    cursor.execute("DELETE FROM friends WHERE user_id = %s AND friend_login = %s", (user_id, friend_login))
+                    conn.commit()
+
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'status': 'ok'}), 200
+                else:
+                    return jsonify({'error': 'Token expired'}), 401
+            else:
+                return jsonify({'error': 'Invalid token'}), 401
+        else:
+            return jsonify({'error': 'Token is missing'}), 401
+    except psycopg2.Error as e:
+        print("Database error:", e)
+        return jsonify({'error': 'Database error'}), 500
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({'error': 'Internal server error'}), 500
+
+def is_token_valid(token_created_at):
+    current_time = datetime.now()
+    token_expiration_time = token_created_at + timedelta(hours=1)
+    return current_time <= token_expiration_time
+# Эндпоинт для получения списка друзей
+@app.route('/api/friends', methods=['GET'])
+def get_friends():
+    try:
+        conn = psycopg2.connect(POSTGRES_CONN)
+        cursor = conn.cursor()
+
+        # Получение логина текущего пользователя по токену
+        token = request.headers.get('Authorization')
+        if token:
+            token = token.split('Bearer ')[1]
+            cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+            user_data = cursor.fetchone()
+            if user_data:
+                user_id, created_at = user_data
+                if is_token_valid(created_at):
+                    user_id = user_id[0]
+
+                    # Получение параметров пагинации
+                    limit = request.args.get('limit', default=10, type=int)
+                    offset = request.args.get('offset', default=0, type=int)
+
+                    # Получение списка друзей с учетом пагинации
+                    cursor.execute("SELECT friend_login, added_at FROM friends WHERE user_id = %s ORDER BY added_at DESC LIMIT %s OFFSET %s", (user_id, limit, offset))
+                    friends_data = cursor.fetchall()
+
+                    friends_list = []
+                    for friend_data in friends_data:
+                        friend_login, added_at = friend_data
+                        friends_list.append({'login': friend_login, 'addedAt': added_at.strftime('%Y-%m-%dT%H:%M:%SZ')})
+
+                    cursor.close()
+                    conn.close()
+                    return jsonify(friends_list), 200
+                else:
+                    return jsonify({'error': 'Token expired'}), 401
+            else:
+                return jsonify({'error': 'Invalid token'}), 401
+        else:
+            return jsonify({'error': 'Token is missing'}), 401
+    except psycopg2.Error as e:
+        print("Database error:", e)
+        return jsonify({'error': 'Database error'}), 500
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({'error': 'Internal server error'}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
