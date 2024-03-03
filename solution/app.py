@@ -11,6 +11,7 @@ POSTGRES_CONN = os.getenv('POSTGRES_CONN')
 # Установка подключения к базе данных
 conn = psycopg2.connect(POSTGRES_CONN)
 cursor = conn.cursor()
+
 create_table_query = '''
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
 # Выполнение SQL-запроса
 cursor.execute(create_table_query)
 conn.commit()
+
 # Обработчик эндпоинта /api/ping
 @app.route('/api/ping')
 def ping():
