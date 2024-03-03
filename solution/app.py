@@ -308,39 +308,72 @@ def me_profile():
 @app.route('/api/profiles/<login>', methods=['GET'])
 def get_profile(login):
     try:
-        conn = psycopg2.connect(POSTGRES_CONN)
-        cursor = conn.cursor()
+        # Получение токена из заголовка Authorization
+        token = request.headers.get('Authorization')
 
-        # Получение данных профиля по логину
-        cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE login = %s", (login,))
-        user_data = cursor.fetchone()
+        if token:
+            # Извлечение токена из строки "Bearer {token}"
+            token = token.split('Bearer ')[1]
 
-        #ДОПИСАТЬ ФУНКЦИОНАЛ С ДРУЗЬЯМИ!!!
+            # Подключение к базе данных
+            conn = psycopg2.connect(POSTGRES_CONN)
+            cursor = conn.cursor()
 
-        if user_data:
-            profile = {
-                'login': user_data[0],
-                'email': user_data[1],
-                'countryCode': user_data[2],
-                'isPublic': user_data[3],
-                'phone': user_data[4],
-                'image': user_data[5]
-            }
+            # Получение идентификатора пользователя по токену
+            cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+            user_data = cursor.fetchone()
+            if user_data:
+                user_id, created_at = user_data
+                if is_token_valid(created_at):
 
-            # Проверка настройки приватности профиля
-            if user_data[3]:  # Если профиль публичен
-                cursor.close()
-                conn.close()
-                return jsonify(profile), 200
+
+
+
+                    # Проверка наличия профиля пользователя
+                    cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE login = %s",
+                                   (login,))
+                    user_data = cursor.fetchone()
+
+                    if user_data:
+                        profile = {
+                            'login': user_data[0],
+                            'email': user_data[1],
+                            'countryCode': user_data[2],
+                            'isPublic': user_data[3],
+                            'phone': user_data[4],
+                            'image': user_data[5]
+                        }
+
+                        # Проверка настройки приватности профиля
+                        if user_data[3]:  # Если профиль публичен
+                            cursor.close()
+                            conn.close()
+                            return jsonify(profile), 200
+                        else:
+                            # Проверка доступа к закрытому профилю
+                            cursor.execute("SELECT 1 FROM friends WHERE user_id = %s AND friend_login = %s",
+                                           (user_id, user_data[0]))
+                            friend = cursor.fetchone()
+                            if friend:
+                                cursor.close()
+                                conn.close()
+                                return jsonify(profile), 200
+                            else:
+                                cursor.close()
+                                conn.close()
+                                return jsonify({'error': 'Access denied. Profile is private.'}), 403
+                    else:
+                        return jsonify({'error': 'Token expired'}), 401
+                else:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'error': 'User not found'}), 404
             else:
-                # Если профиль закрыт, возвращаем ошибку доступа
-                cursor.close()
-                conn.close()
-                return jsonify({'error': 'Access denied. Profile is private.'}), 403
+                # Некорректный токен
+                return jsonify({'error': 'Invalid token'}), 401
         else:
-            cursor.close()
-            conn.close()
-            return jsonify({'error': 'User not found'}), 404
+            # Токен отсутствует
+            return jsonify({'error': 'Token is missing'}), 401
     except psycopg2.Error as e:
         print("Database error:", e)
         return jsonify({'error': 'Database error'}), 500
@@ -506,7 +539,7 @@ def get_friends():
             if user_data:
                 user_id, created_at = user_data
                 if is_token_valid(created_at):
-                    user_id = user_id[0]
+
 
                     # Получение параметров пагинации
                     limit = request.args.get('limit', default=10, type=int)
