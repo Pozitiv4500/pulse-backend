@@ -96,5 +96,6 @@ def register():
 
     return jsonify({'profile': {'id': user_id, 'login': data['login'], 'email': data['email'], 'countryCode': data['countryCode'], 'isPublic': data['isPublic']}}), 201
 
+
 if __name__ == '__main__':
     app.run(debug=True)
