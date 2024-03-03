@@ -1,12 +1,20 @@
 FROM python:3.12.1-alpine3.19
 
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Set the working directory in the container
 WORKDIR /app
 
+# Install dependencies
 COPY requirements.txt requirements.txt
-RUN pip3 install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy the current directory contents into the container at /app
 COPY . .
 
-ENV SERVER_PORT=8080
+# Expose port 8080 to the outside world
+EXPOSE 8080
 
-CMD ["sh", "-c", "exec python3 -m flask run --host=0.0.0.0 --port=$SERVER_PORT"]
+# Command to run the application
+CMD ["python", "app.py"]

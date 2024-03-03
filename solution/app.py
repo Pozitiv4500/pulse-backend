@@ -1,10 +1,20 @@
-from flask import Flask, request, jsonify
+import psycopg2
+from flask import Flask
 
 app = Flask(__name__)
 
-@app.route('/api/ping', methods=['GET'])
-def send():
-    return jsonify({"status": "ok"}), 200
+# Connect to PostgreSQL
+conn = psycopg2.connect(
+    dbname="postgres",
+    user="postgres",
+    password="admin11311",
+    host="localhost",
+    port="5432"
+)
 
-if __name__ == "__main__":
-    app.run()
+@app.route('/api/ping')
+def ping():
+    return 'ok'
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
