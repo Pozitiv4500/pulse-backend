@@ -36,6 +36,7 @@ def ping():
 @app.route('/api/countries', methods=['GET'])
 def get_countries():
     region = request.args.getlist('region')  # Получаем список регионов из запроса
+    order_by = 'alpha2'  # Сортировка по умолчанию по двухбуквенному коду
     if region:
         placeholders = ','.join(['%s' for _ in region])
         query = f"SELECT name, alpha2, alpha3, region FROM countries WHERE region IN ({placeholders}) ORDER BY alpha2"
@@ -46,7 +47,7 @@ def get_countries():
     formatted_countries = [{'name': country[0], 'alpha2': country[1], 'alpha3': country[2], 'region': country[3]} for country in countries]
     return jsonify(formatted_countries)
 
-# Обработчик эндпоинта /api/countries/<alpha2>
+# Обработчик эндпоинта /countries/<alpha2>
 @app.route('/api/countries/<alpha2>', methods=['GET'])
 def get_country(alpha2):
     cursor.execute("SELECT name, alpha2, alpha3, region FROM countries WHERE alpha2 = %s", (alpha2,))
