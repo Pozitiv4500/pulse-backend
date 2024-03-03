@@ -200,5 +200,81 @@ def sign_in():
         print("Ошибка:", e)
         return jsonify({'error': 'Внутренняя ошибка сервера'}), 502
 
+@app.route('/api/me/profile', methods=['GET', 'PATCH'])
+def me_profile():
+    if request.method == 'GET':
+        # Получение профиля
+        token = request.headers.get('Authorization')
+        if token:
+            token = token.split('Bearer ')[1]
+            conn = psycopg2.connect(POSTGRES_CONN)
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM tokens WHERE token = %s", (token,))
+            user_id = cursor.fetchone()
+            if user_id:
+                user_id = user_id[0]
+                cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE id = %s", (user_id,))
+                user_data = cursor.fetchone()
+                cursor.close()
+                conn.close()
+                if user_data:
+                    profile = {
+                        'login': user_data[0],
+                        'email': user_data[1],
+                        'country_code': user_data[2],
+                        'is_public': user_data[3],
+                        'phone': user_data[4],
+                        'image': user_data[5]
+                    }
+                    return jsonify(profile), 200
+                else:
+                    return jsonify({'error': 'User not found'}), 404
+            else:
+                return jsonify({'error': 'Invalid token'}), 401
+        else:
+            return jsonify({'error': 'Token is missing'}), 401
+    elif request.method == 'PATCH':
+        # Обновление профиля
+        token = request.headers.get('Authorization')
+        if token:
+            token = token.split('Bearer ')[1]
+            conn = psycopg2.connect(POSTGRES_CONN)
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM tokens WHERE token = %s", (token,))
+            user_id = cursor.fetchone()
+            if user_id:
+                user_id = user_id[0]
+                data = request.json
+                # Проверяем, переданы ли данные для обновления
+                if data:
+                    # Генерируем SET выражение
+                    set_expr = ','.join([f"{field} = '{data[field]}'" for field in data])
+                    query = f"UPDATE users SET {set_expr} WHERE id = %s RETURNING login, email, country_code, is_public, phone, image"
+                    cursor.execute(query, (user_id,))
+                    updated_user_data = cursor.fetchone()
+                    if updated_user_data:
+                        updated_profile = {
+                            'login': updated_user_data[0],
+                            'email': updated_user_data[1],
+                            'country_code': updated_user_data[2],
+                            'is_public': updated_user_data[3],
+                            'phone': updated_user_data[4],
+                            'image': updated_user_data[5]
+                        }
+                        conn.commit()
+                        cursor.close()
+                        conn.close()
+                        return jsonify(updated_profile), 200
+                    else:
+                        cursor.close()
+                        conn.close()
+                        return jsonify({'error': 'User not found'}), 404
+                else:
+                    return jsonify({'error': 'No data provided'}), 400
+            else:
+                return jsonify({'error': 'Invalid token'}), 401
+        else:
+            return jsonify({'error': 'Token is missing'}), 401
+
 if __name__ == '__main__':
     app.run(debug=True)
