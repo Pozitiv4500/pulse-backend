@@ -1,4 +1,5 @@
-
+import secrets
+import string
 import os
 import psycopg2
 import hashlib
@@ -168,19 +169,8 @@ def sign_in():
             try:
                 if entered_password_hash == hashed_password_from_db:
 
-                    JWT_ALGORITHM = 'HS256'
-                    JWT_EXPIRATION_DELTA = timedelta(hours=1)
-                    JWT_SECRET = "9fbdf716ea9c5eb1341396c6d45792c826d478fafafb71002a2e7ec060fdc7e0"
-
-                    # Подготовка данных для токена
-                    payload = {
-                        'sub': str(user_id),
-                        'iat': datetime.utcnow(),
-                        'exp': (datetime.utcnow() + JWT_EXPIRATION_DELTA),
-                    }
-
-                    # Генерация токена
-                    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+                    JWT_SECRET_LENGTH = 40
+                    token = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(JWT_SECRET_LENGTH))
 
                     # Сохранение токена в базе данных (если это требуется вашим приложением)
 
