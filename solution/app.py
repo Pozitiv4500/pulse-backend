@@ -1,10 +1,8 @@
-import base64
+
 import os
 import psycopg2
 import hashlib
 from psycopg2 import Error
-from bcrypt import checkpw
-from bcrypt import hashpw, gensalt
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 import jwt
@@ -167,31 +165,39 @@ def sign_in():
             entered_password_hash = hashlib.sha256(data['password'].encode('utf-8')).hexdigest()
 
             # Сравнение хешей паролей
-            if entered_password_hash == hashed_password_from_db:
-                JWT_ALGORITHM = 'HS256'
-                JWT_EXPIRATION_DELTA = timedelta(hours=1)
+            try:
+                if entered_password_hash == hashed_password_from_db:
+                    try:
+                        JWT_ALGORITHM = 'HS256'
+                        JWT_EXPIRATION_DELTA = timedelta(hours=1)
 
 
-                # Подготовка данных для токена
-                payload = {
-                    'sub': user_id,
-                    'iat': datetime.utcnow(),
-                    'exp': datetime.utcnow() + JWT_EXPIRATION_DELTA
-                }
+                        # Подготовка данных для токена
+                        payload = {
+                            'sub': user_id,
+                            'iat': datetime.utcnow(),
+                            'exp': datetime.utcnow() + JWT_EXPIRATION_DELTA
+                        }
 
-                # Генерация токена
-                token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+                        # Генерация токена
+                        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-                # Сохранение токена в базе данных (если это требуется вашим приложением)
-                cursor.execute("INSERT INTO tokens (user_id, token) VALUES (%s, %s)", (user_id, token))
-                conn.commit()
-                cursor.close()
-                conn.close()
-                return jsonify({'token': token}), 200
-            else:
-                cursor.close()
-                conn.close()
-                return jsonify({'error': 'Пользователь с указанным логином и паролем не найден'}), 401
+                        # Сохранение токена в базе данных (если это требуется вашим приложением)
+                        cursor.execute("INSERT INTO tokens (user_id, token) VALUES (%s, %s)", (user_id, token))
+                        conn.commit()
+                        cursor.close()
+                        conn.close()
+                        return jsonify({'token': token}), 200
+                    except:
+                        return jsonify({'error': 'Внутренняя ошибка сервера'}), 503
+                else:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'error': 'Пользователь с указанным логином и паролем не найден'}), 401
+            except:
+                return jsonify({'error': 'Внутренняя ошибка сервера'}), 504
+
+
         else:
             cursor.close()
             conn.close()
