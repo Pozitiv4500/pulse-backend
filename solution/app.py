@@ -38,20 +38,22 @@ def get_countries():
     region = request.args.getlist('region')  # Получаем список регионов из запроса
     if region:
         placeholders = ','.join(['%s' for _ in region])
-        query = f"SELECT * FROM countries WHERE region IN ({placeholders}) ORDER BY alpha2"
+        query = f"SELECT name, alpha2, alpha3, region FROM countries WHERE region IN ({placeholders}) ORDER BY alpha2"
         cursor.execute(query, region)
     else:
-        cursor.execute("SELECT * FROM countries ORDER BY alpha2")
+        cursor.execute("SELECT name, alpha2, alpha3, region FROM countries ORDER BY alpha2")
     countries = cursor.fetchall()
-    return jsonify(countries)
+    formatted_countries = [{'name': country[0], 'alpha2': country[1], 'alpha3': country[2], 'region': country[3]} for country in countries]
+    return jsonify(formatted_countries)
 
-# Обработчик эндпоинта /countries/<alpha2>
+# Обработчик эндпоинта /api/countries/<alpha2>
 @app.route('/api/countries/<alpha2>', methods=['GET'])
 def get_country(alpha2):
-    cursor.execute("SELECT * FROM countries WHERE alpha2 = %s", (alpha2,))
+    cursor.execute("SELECT name, alpha2, alpha3, region FROM countries WHERE alpha2 = %s", (alpha2,))
     country = cursor.fetchone()
     if country:
-        return jsonify(country)
+        formatted_country = {'name': country[0], 'alpha2': country[1], 'alpha3': country[2], 'region': country[3]}
+        return jsonify(formatted_country)
     else:
         return jsonify({'error': 'Country not found'}), 404
 
