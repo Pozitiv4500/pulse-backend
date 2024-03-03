@@ -19,10 +19,14 @@ def ping():
 # Обработчик эндпоинта /api/countries
 @app.route('/api/countries')
 def get_countries():
-    region = request.args.get('region')  # Получаем параметр region из запроса
+    region = request.args.getlist('region')  # Получаем список регионов из запроса
+    filtered_countries = []
     if region:
-        # Фильтруем страны по региону
-        cursor.execute("SELECT * FROM countries WHERE region = %s", (region,))
+        # Генерируем строку с плейсхолдерами для каждого региона
+        placeholders = ','.join(['%s' for _ in region])
+        # Формируем запрос с фильтрацией по региону
+        query = f"SELECT * FROM countries WHERE region IN ({placeholders})"
+        cursor.execute(query, region)
     else:
         # Получаем все страны
         cursor.execute("SELECT * FROM countries")
