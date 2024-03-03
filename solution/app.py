@@ -2,6 +2,7 @@ import base64
 import os
 import psycopg2
 import hashlib
+from psycopg2 import Error
 from bcrypt import checkpw
 from bcrypt import hashpw, gensalt
 from flask import Flask, jsonify, request
@@ -150,50 +151,59 @@ def register():
 
 @app.route('/api/auth/sign-in', methods=['POST'])
 def sign_in():
-    conn = psycopg2.connect(POSTGRES_CONN)
-    cursor = conn.cursor()
-    data = request.json
+    try:
+        conn = psycopg2.connect(POSTGRES_CONN)
+        cursor = conn.cursor()
+        data = request.json
 
-    # Поиск пользователя по логину
-    cursor.execute("SELECT id, password FROM users WHERE login = %s", (data['login'],))
-    user = cursor.fetchone()
+        # Поиск пользователя по логину
+        cursor.execute("SELECT id, password FROM users WHERE login = %s", (data['login'],))
+        user = cursor.fetchone()
 
-    if user:
+        if user:
 
-        user_id, hashed_password_from_db = user
+            user_id, hashed_password_from_db = user
 
-        entered_password_hash = hashlib.sha256(data['password'].encode('utf-8')).hexdigest()
+            entered_password_hash = hashlib.sha256(data['password'].encode('utf-8')).hexdigest()
 
-        # Сравнение хешей паролей
-        if entered_password_hash == hashed_password_from_db:
-            JWT_ALGORITHM = 'HS256'
-            JWT_EXPIRATION_DELTA = timedelta(hours=1)
+            # Сравнение хешей паролей
+            if entered_password_hash == hashed_password_from_db:
+                JWT_ALGORITHM = 'HS256'
+                JWT_EXPIRATION_DELTA = timedelta(hours=1)
 
 
-            # Подготовка данных для токена
-            payload = {
-                'sub': user_id,
-                'iat': datetime.utcnow(),
-                'exp': datetime.utcnow() + JWT_EXPIRATION_DELTA
-            }
+                # Подготовка данных для токена
+                payload = {
+                    'sub': user_id,
+                    'iat': datetime.utcnow(),
+                    'exp': datetime.utcnow() + JWT_EXPIRATION_DELTA
+                }
 
-            # Генерация токена
-            token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+                # Генерация токена
+                token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-            # Сохранение токена в базе данных (если это требуется вашим приложением)
-            cursor.execute("INSERT INTO tokens (user_id, token) VALUES (%s, %s)", (user_id, token))
-            conn.commit()
-            cursor.close()
-            conn.close()
-            return jsonify({'token': token}), 200
+                # Сохранение токена в базе данных (если это требуется вашим приложением)
+                cursor.execute("INSERT INTO tokens (user_id, token) VALUES (%s, %s)", (user_id, token))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                return jsonify({'token': token}), 200
+            else:
+                cursor.close()
+                conn.close()
+                return jsonify({'error': 'Пользователь с указанным логином и паролем не найден'}), 401
         else:
             cursor.close()
             conn.close()
             return jsonify({'error': 'Пользователь с указанным логином и паролем не найден'}), 401
-    else:
-        cursor.close()
-        conn.close()
-        return jsonify({'error': 'Пользователь с указанным логином и паролем не найден'}), 401
+    except Error as e:
+        # Логирование ошибок
+        print("Ошибка базы данных:", e)
+        return jsonify({'error': 'Ошибка базы данных'}), 501
+    except Exception as e:
+        # Обработка других исключений
+        print("Ошибка:", e)
+        return jsonify({'error': 'Внутренняя ошибка сервера'}), 502
 
 if __name__ == '__main__':
     app.run(debug=True)
