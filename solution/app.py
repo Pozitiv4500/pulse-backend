@@ -11,7 +11,7 @@ app = Flask(__name__)
 load_dotenv()
 # Получение параметров подключения к PostgreSQL из переменных окружения
 POSTGRES_CONN = os.getenv('POSTGRES_CONN')
-JWT_SECRET = os.getenv('JWT_SECRET')
+
 # Установка подключения к базе данных
 conn = psycopg2.connect(POSTGRES_CONN)
 cursor = conn.cursor()
@@ -170,7 +170,7 @@ def sign_in():
 
                     JWT_ALGORITHM = 'HS256'
                     JWT_EXPIRATION_DELTA = timedelta(hours=1)
-
+                    JWT_SECRET = "9fbdf716ea9c5eb1341396c6d45792c826d478fafafb71002a2e7ec060fdc7e0"
 
                     # Подготовка данных для токена
                     payload = {
@@ -183,14 +183,12 @@ def sign_in():
                     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
                     # Сохранение токена в базе данных (если это требуется вашим приложением)
-                    try:
-                        cursor.execute("INSERT INTO tokens (user_id, token) VALUES (%s, %s)", (user_id, token))
-                        conn.commit()
-                        cursor.close()
-                        conn.close()
-                        return jsonify({'token': token}), 200
-                    except:
-                        return jsonify({'error': 'Внутренняя ошибка сервера'}), 503
+
+                    cursor.execute("INSERT INTO tokens (user_id, token) VALUES (%s, %s)", (user_id, token))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'token': token}), 200
                 else:
                     cursor.close()
                     conn.close()
