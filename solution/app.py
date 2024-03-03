@@ -167,22 +167,23 @@ def sign_in():
             # Сравнение хешей паролей
             try:
                 if entered_password_hash == hashed_password_from_db:
+
+                    JWT_ALGORITHM = 'HS256'
+                    JWT_EXPIRATION_DELTA = timedelta(hours=1)
+
+
+                    # Подготовка данных для токена
+                    payload = {
+                        'sub': user_id,
+                        'iat': datetime.utcnow(),
+                        'exp': datetime.utcnow() + JWT_EXPIRATION_DELTA
+                    }
+
+                    # Генерация токена
+                    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+                    # Сохранение токена в базе данных (если это требуется вашим приложением)
                     try:
-                        JWT_ALGORITHM = 'HS256'
-                        JWT_EXPIRATION_DELTA = timedelta(hours=1)
-
-
-                        # Подготовка данных для токена
-                        payload = {
-                            'sub': user_id,
-                            'iat': datetime.utcnow(),
-                            'exp': datetime.utcnow() + JWT_EXPIRATION_DELTA
-                        }
-
-                        # Генерация токена
-                        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-                        # Сохранение токена в базе данных (если это требуется вашим приложением)
                         cursor.execute("INSERT INTO tokens (user_id, token) VALUES (%s, %s)", (user_id, token))
                         conn.commit()
                         cursor.close()
