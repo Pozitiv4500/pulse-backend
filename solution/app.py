@@ -43,6 +43,7 @@ cursor.execute(create_table_query)
 conn.commit()
 cursor.close()
 conn.close()
+
 # Обработчик эндпоинта /api/ping
 @app.route('/api/ping')
 def ping():
@@ -176,6 +177,7 @@ def sign_in():
 
                     cursor.execute("INSERT INTO tokens (user_id, token) VALUES (%s, %s)", (user_id, token))
                     conn.commit()
+
                     cursor.close()
                     conn.close()
                     return jsonify({'token': token}), 200
@@ -184,6 +186,8 @@ def sign_in():
                     conn.close()
                     return jsonify({'error': 'Пользователь с указанным логином и паролем не найден'}), 401
             except:
+                cursor.close()
+                conn.close()
                 return jsonify({'error': 'Внутренняя ошибка сервера'}), 504
 
 
@@ -194,6 +198,7 @@ def sign_in():
     except Error as e:
         # Логирование ошибок
         print("Ошибка базы данных:", e)
+
         return jsonify({'error': 'Ошибка базы данных'}), 501
     except Exception as e:
         # Обработка других исключений
@@ -202,21 +207,21 @@ def sign_in():
 
 @app.route('/api/me/profile', methods=['GET', 'PATCH'])
 def me_profile():
+    conn = psycopg2.connect(POSTGRES_CONN)
+    cursor = conn.cursor()
     if request.method == 'GET':
         # Получение профиля
         token = request.headers.get('Authorization')
         if token:
             token = token.split('Bearer ')[1]
-            conn = psycopg2.connect(POSTGRES_CONN)
-            cursor = conn.cursor()
+
             cursor.execute("SELECT user_id FROM tokens WHERE token = %s", (token,))
             user_id = cursor.fetchone()
             if user_id:
                 user_id = user_id[0]
                 cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE id = %s", (user_id,))
                 user_data = cursor.fetchone()
-                cursor.close()
-                conn.close()
+
                 if user_data:
                     profile = {
                         'login': user_data[0],
@@ -226,20 +231,27 @@ def me_profile():
                         'phone': user_data[4],
                         'image': user_data[5]
                     }
+                    cursor.close()
+                    conn.close()
                     return jsonify(profile), 200
                 else:
+                    cursor.close()
+                    conn.close()
                     return jsonify({'error': 'User not found'}), 406
             else:
+                cursor.close()
+                conn.close()
                 return jsonify({'error': 'Invalid token'}), 401
         else:
+            cursor.close()
+            conn.close()
             return jsonify({'error': 'Token is missing'}), 401
     elif request.method == 'PATCH':
         # Обновление профиля
         token = request.headers.get('Authorization')
         if token:
             token = token.split('Bearer ')[1]
-            conn = psycopg2.connect(POSTGRES_CONN)
-            cursor = conn.cursor()
+
             cursor.execute("SELECT user_id FROM tokens WHERE token = %s", (token,))
             user_id = cursor.fetchone()
 
@@ -264,6 +276,7 @@ def me_profile():
                             'image': updated_user_data[5],
                         }
                         conn.commit()
+
                         cursor.close()
                         conn.close()
                         return jsonify(updated_profile), 200
@@ -272,10 +285,16 @@ def me_profile():
                         conn.close()
                         return jsonify({'error': 'User not found'}), 405
                 else:
+                    cursor.close()
+                    conn.close()
                     return jsonify({'error': 'No data provided'}), 400
             else:
+                cursor.close()
+                conn.close()
                 return jsonify({'error': 'Invalid token'}), 401
         else:
+            cursor.close()
+            conn.close()
             return jsonify({'error': 'Token is missing'}), 401
 
 if __name__ == '__main__':
