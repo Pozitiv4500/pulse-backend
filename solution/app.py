@@ -11,33 +11,43 @@ POSTGRES_CONN = os.getenv('POSTGRES_CONN')
 # Установка подключения к базе данных
 conn = psycopg2.connect(POSTGRES_CONN)
 cursor = conn.cursor()
+create_table_query = '''
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    login VARCHAR(30) UNIQUE NOT NULL,
+    email VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    country_code VARCHAR(2) NOT NULL,
+    is_public BOOLEAN NOT NULL,
+    phone VARCHAR(15) UNIQUE,
+    image VARCHAR(200)
+);
+'''
 
+# Выполнение SQL-запроса
+cursor.execute(create_table_query)
+conn.commit()
 # Обработчик эндпоинта /api/ping
 @app.route('/api/ping')
 def ping():
     return 'Pong'
 
 # Обработчик эндпоинта /api/countries
-@app.route('/api/countries')
+@app.route('/api/countries', methods=['GET'])
 def get_countries():
     region = request.args.getlist('region')  # Получаем список регионов из запроса
-    filtered_countries = []
     if region:
-        # Генерируем строку с плейсхолдерами для каждого региона
         placeholders = ','.join(['%s' for _ in region])
-        # Формируем запрос с фильтрацией по региону
-        query = f"SELECT * FROM countries WHERE region IN ({placeholders})"
+        query = f"SELECT * FROM countries WHERE region IN ({placeholders}) ORDER BY alpha2"
         cursor.execute(query, region)
     else:
-        # Получаем все страны
-        cursor.execute("SELECT * FROM countries")
+        cursor.execute("SELECT * FROM countries ORDER BY alpha2")
     countries = cursor.fetchall()
     return jsonify(countries)
 
-# Обработчик эндпоинта /api/countries/<alpha2>
-@app.route('/api/countries/<alpha2>')
+# Обработчик эндпоинта /countries/<alpha2>
+@app.route('/api/countries/<alpha2>', methods=['GET'])
 def get_country(alpha2):
-    # Получаем страну по её уникальному двухбуквенному коду
     cursor.execute("SELECT * FROM countries WHERE alpha2 = %s", (alpha2,))
     country = cursor.fetchone()
     if country:
@@ -45,7 +55,8 @@ def get_country(alpha2):
     else:
         return jsonify({'error': 'Country not found'}), 404
 
-@app.route('/auth/register', methods=['POST'])
+
+@app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.json
 
