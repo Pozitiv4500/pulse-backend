@@ -161,7 +161,7 @@ def sign_in():
     if user:
 
         user_id, hashed_password_from_db = user
-        print(user_id)
+
         entered_password_hash = hashlib.sha256(data['password'].encode('utf-8')).hexdigest()
 
         # Сравнение хешей паролей
@@ -189,11 +189,11 @@ def sign_in():
         else:
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Invalid password'}), 401
+            return jsonify({'error': 'Пользователь с указанным логином и паролем не найден'}), 401
     else:
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Invalid username'}), 401
+        return jsonify({'error': 'Пользователь с указанным логином и паролем не найден'}), 401
 
 if __name__ == '__main__':
     app.run(debug=True)
