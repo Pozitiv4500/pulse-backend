@@ -6,7 +6,7 @@ app = Flask(__name__)
 load_dotenv()
 # Получение параметров подключения к PostgreSQL из переменных окружения
 POSTGRES_CONN = os.getenv('POSTGRES_CONN')
-print(POSTGRES_CONN)
+
 # Установка подключения к базе данных
 conn = psycopg2.connect(POSTGRES_CONN)
 cursor = conn.cursor()

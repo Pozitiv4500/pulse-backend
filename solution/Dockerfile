@@ -1,17 +1,15 @@
 FROM python:3.12.1-alpine3.19
 
-# Устанавливаем переменную окружения PYTHONUNBUFFERED=1 для предотвращения вывода буферизации
-ENV PYTHONUNBUFFERED=1
+RUN apk add --no-cache gcc musl-dev postgresql-dev
 
-# Устанавливаем директорию приложения в контейнере
 WORKDIR /app
 
-# Устанавливаем зависимости
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements.txt
+RUN pip3 install -r requirements.txt
 
-# Копируем наше приложение в контейнер
 COPY . .
 
-# Команда для запуска приложения
-CMD ["python", "app.py"]
+ENV SERVER_PORT=8080
+ENV POSTGRES_CONN="postgres://postgres:postgres@localhost:5432"
+
+CMD ["sh", "-c", "exec python3 -m flask run --host=0.0.0.0 --port=$SERVER_PORT"]
