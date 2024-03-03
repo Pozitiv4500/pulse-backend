@@ -174,7 +174,7 @@ def sign_in():
 
                     # Подготовка данных для токена
                     payload = {
-                        'sub': user_id,
+                        'sub': str(user_id),
                         'iat': datetime.utcnow(),
                         'exp': (datetime.utcnow() + JWT_EXPIRATION_DELTA),
                     }
