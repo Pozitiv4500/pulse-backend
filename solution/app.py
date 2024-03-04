@@ -1,3 +1,4 @@
+import re
 import secrets
 import string
 import os
@@ -126,6 +127,49 @@ def register():
             conn.close()
             return jsonify({'error': 'Phone number already exists'}), 409
 
+    # Проверка пароля
+    if not re.match(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{6,100}$", data['password']):
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Password does not meet the requirements'}), 400
+
+    # Проверка логина
+    if not re.match(r"^[a-zA-Z0-9-]{1,30}$", data['login']):
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid login format'}), 400
+
+    # Проверка email
+    if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{1,50}$", data['email']):
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid email format'}), 400
+
+    # Проверка кода страны
+    cursor.execute("SELECT name FROM countries WHERE alpha2 = %s", (data['countryCode'],))
+    if not cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid country code'}), 400
+
+    # Проверка номера телефона
+    if 'phone' in data:
+        if not re.match(r"\+[\d]{1,20}", data['phone']):
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Invalid phone number format'}), 400
+
+    # Проверка длины ссылки на изображение
+    if 'image' in data:
+        if len(data['image']) > 200:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Image URL exceeds the maximum length'}), 400
+        if len(data['image']) < 1:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Image URL is too short'}), 400
+
     # Хеширование пароля
     hashed_password = hashlib.sha256(data['password'].encode('utf-8')).hexdigest()
     # Вставка данных в базу
@@ -155,6 +199,7 @@ def register():
     cursor.close()
     conn.close()
     return jsonify({'profile': profile_data}), 201
+
 
 
 @app.route('/api/auth/sign-in', methods=['POST'])
@@ -606,6 +651,86 @@ def get_friends():
     except Exception as e:
         print("Error:", e)
         return jsonify({'error': 'Internal server error'}), 500
+
+def hash_password_sha256(password):
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+
+@app.route('/api/me/updatePassword', methods=['POST'])
+def update_password():
+    try:
+        # Получение токена из заголовка Authorization
+        token = request.headers.get('Authorization')
+        if token:
+            token = token.split('Bearer ')[1]
+
+            # Получение данных пользователя по токену
+            conn = psycopg2.connect(POSTGRES_CONN)
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+            user_data = cursor.fetchone()
+
+            if user_data:
+                user_id, created_at = user_data
+                if is_token_valid(created_at):
+                    # Получение пароля пользователя из таблицы users
+                    cursor.execute("SELECT password FROM users WHERE id = %s", (user_id,))
+                    password_hash = cursor.fetchone()[0]  # Получаем хэш пароля из результатов запроса
+
+                    # Получение старого и нового паролей из тела запроса
+                    data = request.json
+                    old_password = data.get('oldPassword')
+                    new_password = data.get('newPassword')
+
+                    # Проверка соответствия старого пароля
+                    if hash_password_sha256(old_password) == password_hash:
+                        # Проверка нового пароля на соответствие требованиям
+                        if (
+                            len(new_password) >= 6
+                            and any(c.isupper() for c in new_password)
+                            and any(c.islower() for c in new_password)
+                            and any(c.isdigit() for c in new_password)
+                        ):
+                            # Хеширование нового пароля
+                            new_password_hash = hash_password_sha256(new_password)
+
+                            # Обновление пароля в базе данных
+                            cursor.execute("UPDATE users SET password = %s WHERE id = %s", (new_password_hash, user_id))
+
+                            # Отзыв всех ранее выпущенных токенов
+                            cursor.execute("DELETE FROM tokens WHERE user_id = %s", (user_id,))
+
+                            conn.commit()
+                            cursor.close()
+                            conn.close()
+
+                            return jsonify({'status': 'ok'}), 200
+                        else:
+                            cursor.close()
+                            conn.close()
+                            return jsonify({'error': 'New password does not meet the requirements'}), 400
+                    else:
+                        cursor.close()
+                        conn.close()
+                        return jsonify({'error': 'Invalid old password'}), 403
+                else:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'error': 'Token expired'}), 401
+            else:
+                cursor.close()
+                conn.close()
+                return jsonify({'error': 'Invalid token'}), 401
+        else:
+            return jsonify({'error': 'Token is missing'}), 401
+    except psycopg2.Error as e:
+        print("Database error:", e)
+        return jsonify({'error': 'Database error'}), 500
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 
 
 if __name__ == '__main__':
