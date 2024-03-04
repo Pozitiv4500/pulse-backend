@@ -223,29 +223,34 @@ def me_profile():
         if token:
             token = token.split('Bearer ')[1]
 
-            cursor.execute("SELECT user_id FROM tokens WHERE token = %s", (token,))
-            user_id = cursor.fetchone()
-            if user_id:
-                user_id = user_id[0]
-                cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE id = %s", (user_id,))
-                user_data = cursor.fetchone()
+            cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+            user_data = cursor.fetchone()
+            if user_data:
+                user_id, created_at = user_data
+                if is_token_valid(created_at):
+                    cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE id = %s", (user_id,))
+                    user_data = cursor.fetchone()
 
-                if user_data:
-                    profile = {
-                        'login': user_data[0],
-                        'email': user_data[1],
-                        'countryCode': user_data[2],
-                        'isPublic': user_data[3],
-                        'phone': user_data[4],
-                        'image': user_data[5]
-                    }
-                    cursor.close()
-                    conn.close()
-                    return jsonify(profile), 200
+                    if user_data:
+                        profile = {
+                            'login': user_data[0],
+                            'email': user_data[1],
+                            'countryCode': user_data[2],
+                            'isPublic': user_data[3],
+                            'phone': user_data[4],
+                            'image': user_data[5]
+                        }
+                        cursor.close()
+                        conn.close()
+                        return jsonify(profile), 200
+                    else:
+                        cursor.close()
+                        conn.close()
+                        return jsonify({'error': 'User not found'}), 406
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'User not found'}), 406
+                    return jsonify({'error': 'Token expired'}), 401
             else:
                 cursor.close()
                 conn.close()
@@ -260,42 +265,46 @@ def me_profile():
         if token:
             token = token.split('Bearer ')[1]
 
-            cursor.execute("SELECT user_id FROM tokens WHERE token = %s", (token,))
-            user_id = cursor.fetchone()
+            cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+            user_data = cursor.fetchone()
+            if user_data:
+                user_id, created_at = user_data
+                if is_token_valid(created_at):
 
-            if user_id:
-                user_id = user_id[0]
+                    data = request.json
+                    # Проверяем, переданы ли данные для обновления
+                    if data:
+                        # Генерируем SET выражение
+                        set_expr = ','.join([f"{field} = '{data[field]}'" for field in data])
+                        query = f"UPDATE users SET {set_expr} WHERE id = %s RETURNING login, email, country_code, is_public, phone, image"
+                        cursor.execute(query, (user_id,))
+                        updated_user_data = cursor.fetchone()
+                        if updated_user_data:
+                            updated_profile = {
+                                'login': updated_user_data[0],
+                                'email': updated_user_data[1],
+                                'countryCode': updated_user_data[2],
+                                'isPublic': updated_user_data[3],
+                                'phone': updated_user_data[4],
+                                'image': updated_user_data[5],
+                            }
+                            conn.commit()
 
-                data = request.json
-                # Проверяем, переданы ли данные для обновления
-                if data:
-                    # Генерируем SET выражение
-                    set_expr = ','.join([f"{field} = '{data[field]}'" for field in data])
-                    query = f"UPDATE users SET {set_expr} WHERE id = %s RETURNING login, email, country_code, is_public, phone, image"
-                    cursor.execute(query, (user_id,))
-                    updated_user_data = cursor.fetchone()
-                    if updated_user_data:
-                        updated_profile = {
-                            'login': updated_user_data[0],
-                            'email': updated_user_data[1],
-                            'countryCode': updated_user_data[2],
-                            'isPublic': updated_user_data[3],
-                            'phone': updated_user_data[4],
-                            'image': updated_user_data[5],
-                        }
-                        conn.commit()
-
-                        cursor.close()
-                        conn.close()
-                        return jsonify(updated_profile), 200
+                            cursor.close()
+                            conn.close()
+                            return jsonify(updated_profile), 200
+                        else:
+                            cursor.close()
+                            conn.close()
+                            return jsonify({'error': 'User not found'}), 405
                     else:
                         cursor.close()
                         conn.close()
-                        return jsonify({'error': 'User not found'}), 405
+                        return jsonify({'error': 'No data provided'}), 400
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'No data provided'}), 400
+                    return jsonify({'error': 'Token expired'}), 401
             else:
                 cursor.close()
                 conn.close()
@@ -363,12 +372,16 @@ def get_profile(login):
                                 conn.close()
                                 return jsonify({'error': 'Access denied. Profile is private.'}), 403
                     else:
-                        return jsonify({'error': 'Token expired'}), 401
+                        cursor.close()
+                        conn.close()
+                        return jsonify({'error': 'User not found'}), 404
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'User not found'}), 404
+                    return jsonify({'error': 'Token expired'}), 401
             else:
+                cursor.close()
+                conn.close()
                 # Некорректный токен
                 return jsonify({'error': 'Invalid token'}), 401
         else:
@@ -450,14 +463,20 @@ def add_friend():
 
                     # Проверка, что пользователь не добавляет сам себя в друзья
                     if friend_login == get_user_login_by_id(user_id):
+                        cursor.close()
+                        conn.close()
                         return jsonify({'status': 'ok'}), 200
 
                     # Проверка, что пользователь с таким логином существует
                     if not is_user_exist(friend_login):
+                        cursor.close()
+                        conn.close()
                         return jsonify({'error': 'User not found'}), 404
 
                     # Проверка, что пользователь уже не является другом
                     if is_friend(user_id, friend_login):
+                        cursor.close()
+                        conn.close()
                         return jsonify({'status': 'ok'}), 200
 
                     # Добавление друга
@@ -468,10 +487,16 @@ def add_friend():
                     conn.close()
                     return jsonify({'status': 'ok'}), 200
                 else:
+                    cursor.close()
+                    conn.close()
                     return jsonify({'error': 'Token expired'}), 401
             else:
+                cursor.close()
+                conn.close()
                 return jsonify({'error': 'Invalid token'}), 401
         else:
+            cursor.close()
+            conn.close()
             return jsonify({'error': 'Token is missing'}), 401
     except psycopg2.Error as e:
         print("Database error:", e)
@@ -507,10 +532,16 @@ def remove_friend():
                     conn.close()
                     return jsonify({'status': 'ok'}), 200
                 else:
+                    cursor.close()
+                    conn.close()
                     return jsonify({'error': 'Token expired'}), 401
             else:
+                cursor.close()
+                conn.close()
                 return jsonify({'error': 'Invalid token'}), 401
         else:
+            cursor.close()
+            conn.close()
             return jsonify({'error': 'Token is missing'}), 401
     except psycopg2.Error as e:
         print("Database error:", e)
@@ -558,10 +589,16 @@ def get_friends():
                     conn.close()
                     return jsonify(friends_list), 200
                 else:
+                    cursor.close()
+                    conn.close()
                     return jsonify({'error': 'Token expired'}), 401
             else:
+                cursor.close()
+                conn.close()
                 return jsonify({'error': 'Invalid token'}), 401
         else:
+            cursor.close()
+            conn.close()
             return jsonify({'error': 'Token is missing'}), 401
     except psycopg2.Error as e:
         print("Database error:", e)
