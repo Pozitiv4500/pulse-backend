@@ -140,11 +140,14 @@ def register():
         return jsonify({'error': 'Invalid login format'}), 400
 
     # Проверка email
-    if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{1,50}$", data['email']):
+    if len(data['email']) > 50:
         cursor.close()
         conn.close()
         return jsonify({'error': 'Invalid email format'}), 400
-
+    if len(data['email']) < 1:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid email format'}), 400
     # Проверка кода страны
     cursor.execute("SELECT name FROM countries WHERE alpha2 = %s", (data['countryCode'],))
     if not cursor.fetchone():
