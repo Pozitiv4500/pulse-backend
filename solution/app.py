@@ -2,12 +2,15 @@ import re
 import secrets
 import string
 import os
+import uuid
+
 import psycopg2
 import hashlib
 from psycopg2 import Error
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 import jwt
+
 from datetime import datetime, timedelta
 app = Flask(__name__)
 load_dotenv()
@@ -147,7 +150,16 @@ def register():
     #     cursor.close()
     #     conn.close()
     #     return jsonify({'error': 'Password does not meet the requirements'}), 400
-
+    if not (
+            len(data['password']) >= 6
+            and len(data['password']) <= 100
+            and any(c.isupper() for c in data['password'])
+            and any(c.islower() for c in data['password'])
+            and any(c.isdigit() for c in data['password'])
+    ):
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Password does not meet the requirements'}), 400
     # Проверка логина верно
     if not re.match(r"^[a-zA-Z0-9-]{1,30}$", data['login']):
         cursor.close()
@@ -752,7 +764,53 @@ def update_password():
 
 
 
+@app.route('/api/posts/new', methods=['POST'])
+def submit_post():
+    import datetime
+    # Получаем данные из запроса
+    post_data = request.json
+    content = post_data.get('content')
+    tags = post_data.get('tags')
+    author_id = post_data.get('author_id')  # Предполагается, что вы передаете ID автора в запросе
 
+    # Генерируем уникальный идентификатор публикации
+    post_id = str(uuid.uuid4())
+
+    # Добавляем новую публикацию в базу данных или выполняем другие действия, необходимые для сохранения
+
+    # Создаем объект публикации для возврата клиенту
+    new_post = {
+        'id': post_id,
+        'content': content,
+        'author_id': author_id,
+        'tags': tags,
+        'created_at': datetime.datetime.utcnow().isoformat(),
+        'likesCount': 0,
+        'dislikesCount': 0
+    }
+
+    # Возвращаем информацию о созданной публикации
+    return jsonify(new_post), 200
+
+# Функция для получения публикации по её идентификатору
+@app.route('/api/posts/<post_id>', methods=['GET'])
+def get_post_by_id(post_id):
+    # Здесь вы должны выполнить запрос к базе данных, чтобы получить информацию о публикации по её ID
+    # Для примера я просто сформирую фиктивный объект публикации
+
+    # Замените этот код на запрос к вашей базе данных
+    dummy_post = {
+        'id': post_id,
+        'content': 'Dummy content for post ' + post_id,
+        'author_id': 123,  # Фиктивный ID автора
+        'tags': ['tag1', 'tag2'],
+        'created_at': datetime.datetime.utcnow().isoformat(),
+        'likesCount': 10,
+        'dislikesCount': 2
+    }
+
+    # Возвращаем информацию о публикации
+    return jsonify(dummy_post), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
