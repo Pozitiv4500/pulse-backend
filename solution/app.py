@@ -109,7 +109,7 @@ def get_country(alpha2):
     else:
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Country not found'}), 404
+        return jsonify({'reason': 'Country not found'}), 404
 
 
 @app.route('/api/auth/register', methods=['POST'])
@@ -123,33 +123,33 @@ def register():
     if not all(field in data for field in required_fields):
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Missing required fields'}), 400
+        return jsonify({'reason': 'Missing required fields'}), 400
 
     # Проверка уникальности email, login и phone
     cursor.execute("SELECT email FROM users WHERE email = %s", (data['email'],))
     if cursor.fetchone():
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Email already exists'}), 409
+        return jsonify({'reason': 'Email already exists'}), 409
 
     cursor.execute("SELECT login FROM users WHERE login = %s", (data['login'],))
     if cursor.fetchone():
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Login already exists'}), 409
+        return jsonify({'reason': 'Login already exists'}), 409
 
     if 'phone' in data:
         cursor.execute("SELECT phone FROM users WHERE phone = %s", (data['phone'],))
         if cursor.fetchone():
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Phone number already exists'}), 409
+            return jsonify({'reason': 'Phone number already exists'}), 409
 
     # Проверка пароля
     # if not re.match(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{6,100}$", data['password']):
     #     cursor.close()
     #     conn.close()
-    #     return jsonify({'error': 'Password does not meet the requirements'}), 400
+    #     return jsonify({'reason': 'Password does not meet the requirements'}), 400
     if not (
             len(data['password']) >= 6
             and len(data['password']) <= 100
@@ -159,48 +159,48 @@ def register():
     ):
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Password does not meet the requirements'}), 400
+        return jsonify({'reason': 'Password does not meet the requirements'}), 400
     # Проверка логина верно
     if not re.match(r"^[a-zA-Z0-9-]{1,30}$", data['login']):
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Invalid login format'}), 400
+        return jsonify({'reason': 'Invalid login format'}), 400
 
     # Проверка email
     if len(data['email']) > 50:
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Invalid email format'}), 400
+        return jsonify({'reason': 'Invalid email format'}), 400
     if len(data['email']) < 1:
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Invalid email format'}), 400
+        return jsonify({'reason': 'Invalid email format'}), 400
     # Проверка кода страны
     cursor.execute("SELECT name FROM countries WHERE alpha2 = %s", (data['countryCode'],))
     if not cursor.fetchone():
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Invalid country code'}), 400
+        return jsonify({'reason': 'Invalid country code'}), 400
 
     # Проверка номера телефона
     if len(data['phone']) > 20:
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Invalid phone number format'}), 400
+        return jsonify({'reason': 'Invalid phone number format'}), 400
     if len(data['phone']) < 1:
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Invalid phone number format'}), 400
+        return jsonify({'reason': 'Invalid phone number format'}), 400
     # Проверка длины ссылки на изображение
     if 'image' in data:
         if len(data['image']) > 200:
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Image URL exceeds the maximum length'}), 400
+            return jsonify({'reason': 'Image URL exceeds the maximum length'}), 400
         if len(data['image']) < 1:
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Image URL is too short'}), 400
+            return jsonify({'reason': 'Image URL is too short'}), 400
 
     # Хеширование пароля
     hashed_password = hashlib.sha256(data['password'].encode('utf-8')).hexdigest()
@@ -214,7 +214,7 @@ def register():
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Database error', 'details': str(e)}), 400
+        return jsonify({'reason': 'Database reason', 'details': str(e)}), 400
 
     # Формирование ответа
     profile_data = {
@@ -269,26 +269,26 @@ def sign_in():
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'Пользователь с указанным логином и паролем не найден'}), 401
+                    return jsonify({'reason': 'Пользователь с указанным логином и паролем не найден'}), 401
             except:
                 cursor.close()
                 conn.close()
-                return jsonify({'error': 'Внутренняя ошибка сервера'}), 504
+                return jsonify({'reason': 'Внутренняя ошибка сервера'}), 504
 
 
         else:
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Пользователь с указанным логином и паролем не найден'}), 401
+            return jsonify({'reason': 'Пользователь с указанным логином и паролем не найден'}), 401
     except Error as e:
         # Логирование ошибок
         print("Ошибка базы данных:", e)
 
-        return jsonify({'error': 'Ошибка базы данных'}), 501
+        return jsonify({'reason': 'Ошибка базы данных'}), 501
     except Exception as e:
         # Обработка других исключений
         print("Ошибка:", e)
-        return jsonify({'error': 'Внутренняя ошибка сервера'}), 502
+        return jsonify({'reason': 'Внутренняя ошибка сервера'}), 502
 
 @app.route('/api/me/profile', methods=['GET', 'PATCH'])
 def me_profile():
@@ -323,19 +323,19 @@ def me_profile():
                     else:
                         cursor.close()
                         conn.close()
-                        return jsonify({'error': 'User not found'}), 406
+                        return jsonify({'reason': 'User not found'}), 406
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'Token expired'}), 401
+                    return jsonify({'reason': 'Token expired'}), 401
             else:
                 cursor.close()
                 conn.close()
-                return jsonify({'error': 'Invalid token'}), 401
+                return jsonify({'reason': 'Invalid token'}), 401
         else:
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Token is missing'}), 401
+            return jsonify({'reason': 'Token is missing'}), 401
     elif request.method == 'PATCH':
         # Обновление профиля
         token = request.headers.get('Authorization')
@@ -373,23 +373,23 @@ def me_profile():
                         else:
                             cursor.close()
                             conn.close()
-                            return jsonify({'error': 'User not found'}), 405
+                            return jsonify({'reason': 'User not found'}), 405
                     else:
                         cursor.close()
                         conn.close()
-                        return jsonify({'error': 'No data provided'}), 400
+                        return jsonify({'reason': 'No data provided'}), 400
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'Token expired'}), 401
+                    return jsonify({'reason': 'Token expired'}), 401
             else:
                 cursor.close()
                 conn.close()
-                return jsonify({'error': 'Invalid token'}), 401
+                return jsonify({'reason': 'Invalid token'}), 401
         else:
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Token is missing'}), 401
+            return jsonify({'reason': 'Token is missing'}), 401
 
 @app.route('/api/profiles/<login>', methods=['GET'])
 def get_profile(login):
@@ -416,10 +416,14 @@ def get_profile(login):
 
 
                     # Проверка наличия профиля пользователя
-                    cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE login = %s",
+                    cursor.execute("SELECT login, email, country_code, is_public, phone, image, id FROM users WHERE login = %s",
                                    (login,))
                     user_data = cursor.fetchone()
 
+                    cursor.execute(
+                        "SELECT login, email, country_code, is_public, phone, image, id FROM users WHERE id = %s",
+                        (user_id,))
+                    user_data2 = cursor.fetchone()
                     if user_data:
                         profile = {
                             'login': user_data[0],
@@ -431,14 +435,14 @@ def get_profile(login):
                         }
 
                         # Проверка настройки приватности профиля
-                        if user_data[3]:  # Если профиль публичен
+                        if user_data[3] or user_id == user_data[6]:  # Если профиль публичен
                             cursor.close()
                             conn.close()
                             return jsonify(profile), 200
                         else:
                             # Проверка доступа к закрытому профилю
                             cursor.execute("SELECT 1 FROM friends WHERE user_id = %s AND friend_login = %s",
-                                           (user_id, user_data[0]))
+                                           (user_data[6], user_data2[0]))
                             friend = cursor.fetchone()
                             if friend:
                                 cursor.close()
@@ -447,29 +451,29 @@ def get_profile(login):
                             else:
                                 cursor.close()
                                 conn.close()
-                                return jsonify({'error': 'Access denied. Profile is private.'}), 403
+                                return jsonify({'reason': 'Access denied. Profile is private.'}), 403
                     else:
                         cursor.close()
                         conn.close()
-                        return jsonify({'error': 'User not found'}), 404
+                        return jsonify({'reason': 'User not found'}), 404
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'Token expired'}), 401
+                    return jsonify({'reason': 'Token expired'}), 401
             else:
                 cursor.close()
                 conn.close()
                 # Некорректный токен
-                return jsonify({'error': 'Invalid token'}), 401
+                return jsonify({'reason': 'Invalid token'}), 401
         else:
             # Токен отсутствует
-            return jsonify({'error': 'Token is missing'}), 401
+            return jsonify({'reason': 'Token is missing'}), 401
     except psycopg2.Error as e:
-        print("Database error:", e)
-        return jsonify({'error': 'Database error'}), 500
+        print("Database reason:", e)
+        return jsonify({'reason': 'Database reason'}), 500
     except Exception as e:
         print("Error:", e)
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'reason': 'Internal server reason'}), 500
 
 def get_user_login_by_id(user_id):
     # Подключение к базе данных
@@ -548,7 +552,7 @@ def add_friend():
                     if not is_user_exist(friend_login):
                         cursor.close()
                         conn.close()
-                        return jsonify({'error': 'User not found'}), 404
+                        return jsonify({'reason': 'User not found'}), 404
 
                     # Проверка, что пользователь уже не является другом
                     if is_friend(user_id, friend_login):
@@ -566,21 +570,21 @@ def add_friend():
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'Token expired'}), 401
+                    return jsonify({'reason': 'Token expired'}), 401
             else:
                 cursor.close()
                 conn.close()
-                return jsonify({'error': 'Invalid token'}), 401
+                return jsonify({'reason': 'Invalid token'}), 401
         else:
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Token is missing'}), 401
+            return jsonify({'reason': 'Token is missing'}), 401
     except psycopg2.Error as e:
-        print("Database error:", e)
-        return jsonify({'error': 'Database error'}), 500
+        print("Database reason:", e)
+        return jsonify({'reason': 'Database reason'}), 500
     except Exception as e:
         print("Error:", e)
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'reason': 'Internal server reason'}), 500
 
 # Эндпоинт для удаления пользователя из друзей
 @app.route('/api/friends/remove', methods=['POST'])
@@ -611,21 +615,21 @@ def remove_friend():
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'Token expired'}), 401
+                    return jsonify({'reason': 'Token expired'}), 401
             else:
                 cursor.close()
                 conn.close()
-                return jsonify({'error': 'Invalid token'}), 401
+                return jsonify({'reason': 'Invalid token'}), 401
         else:
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Token is missing'}), 401
+            return jsonify({'reason': 'Token is missing'}), 401
     except psycopg2.Error as e:
-        print("Database error:", e)
-        return jsonify({'error': 'Database error'}), 500
+        print("Database reason:", e)
+        return jsonify({'reason': 'Database reason'}), 500
     except Exception as e:
         print("Error:", e)
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'reason': 'Internal server reason'}), 500
 
 def is_token_valid(token_created_at):
     current_time = datetime.now()
@@ -668,21 +672,21 @@ def get_friends():
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'Token expired'}), 401
+                    return jsonify({'reason': 'Token expired'}), 401
             else:
                 cursor.close()
                 conn.close()
-                return jsonify({'error': 'Invalid token'}), 401
+                return jsonify({'reason': 'Invalid token'}), 401
         else:
             cursor.close()
             conn.close()
-            return jsonify({'error': 'Token is missing'}), 401
+            return jsonify({'reason': 'Token is missing'}), 401
     except psycopg2.Error as e:
-        print("Database error:", e)
-        return jsonify({'error': 'Database error'}), 500
+        print("Database reason:", e)
+        return jsonify({'reason': 'Database reason'}), 500
     except Exception as e:
         print("Error:", e)
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'reason': 'Internal server reason'}), 500
 
 def hash_password_sha256(password):
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
@@ -719,6 +723,7 @@ def update_password():
                         # Проверка нового пароля на соответствие требованиям
                         if (
                             len(new_password) >= 6
+                            and len(new_password) <= 100
                             and any(c.isupper() for c in new_password)
                             and any(c.islower() for c in new_password)
                             and any(c.isdigit() for c in new_password)
@@ -740,77 +745,274 @@ def update_password():
                         else:
                             cursor.close()
                             conn.close()
-                            return jsonify({'error': 'New password does not meet the requirements'}), 400
+                            return jsonify({'reason': 'New password does not meet the requirements'}), 400
                     else:
                         cursor.close()
                         conn.close()
-                        return jsonify({'error': 'Invalid old password'}), 403
+                        return jsonify({'reason': 'Invalid old password'}), 403
                 else:
                     cursor.close()
                     conn.close()
-                    return jsonify({'error': 'Token expired'}), 401
+                    return jsonify({'reason': 'Token expired'}), 401
             else:
                 cursor.close()
                 conn.close()
-                return jsonify({'error': 'Invalid token'}), 401
+                return jsonify({'reason': 'Invalid token'}), 401
         else:
-            return jsonify({'error': 'Token is missing'}), 401
+            return jsonify({'reason': 'Token is missing'}), 401
     except psycopg2.Error as e:
-        print("Database error:", e)
-        return jsonify({'error': 'Database error'}), 500
+        print("Database reason:", e)
+        return jsonify({'reason': 'Database reason'}), 500
     except Exception as e:
         print("Error:", e)
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'reason': 'Internal server reason'}), 500
 
 
+# Функция для подключения к базе данных
+def connect_to_database():
+    conn = psycopg2.connect(POSTGRES_CONN)
+    cursor = conn.cursor()
+    return conn, cursor
+
+# Функция для выполнения запроса на вставку нового поста
+def insert_post_to_database(post_id, content, author_id, tags):
+    import datetime
+    conn, cursor = connect_to_database()
+    cursor.execute(
+        "INSERT INTO posts (id, content, author, tags, created_at) VALUES (%s, %s, %s, %s, %s)",
+        (post_id, content, author_id, tags, datetime.datetime.utcnow())
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 @app.route('/api/posts/new', methods=['POST'])
 def submit_post():
     import datetime
-    # Получаем данные из запроса
-    post_data = request.json
-    content = post_data.get('content')
-    tags = post_data.get('tags')
-    author_id = post_data.get('author_id')  # Предполагается, что вы передаете ID автора в запросе
+    # Проверяем наличие заголовка Authorization
+    if 'Authorization' not in request.headers:
+        return jsonify({'reason': 'Missing Authorization header'}), 401
 
-    # Генерируем уникальный идентификатор публикации
-    post_id = str(uuid.uuid4())
+    # Получаем токен из заголовка Authorization
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(' ')[1]  # Получаем только сам токен, убирая 'Bearer '
 
-    # Добавляем новую публикацию в базу данных или выполняем другие действия, необходимые для сохранения
+    # Подключаемся к базе данных
+    conn, cursor = connect_to_database()
+    cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+    user_data = cursor.fetchone()
 
-    # Создаем объект публикации для возврата клиенту
-    new_post = {
-        'id': post_id,
-        'content': content,
-        'author_id': author_id,
-        'tags': tags,
-        'created_at': datetime.datetime.utcnow().isoformat(),
-        'likesCount': 0,
-        'dislikesCount': 0
-    }
+    if user_data:
+        user_id, created_at = user_data
+        if is_token_valid(created_at):
 
-    # Возвращаем информацию о созданной публикации
-    return jsonify(new_post), 200
+            # Получаем данные из тела запроса
+            post_data = request.json
+            content = post_data.get('content')
+            tags = post_data.get('tags')
+
+            # Генерируем уникальный идентификатор публикации
+            post_id = str(uuid.uuid4())
+
+            # Сохраняем пост в базу данных
+            insert_post_to_database(post_id, content, user_id, tags)
+
+            # Создаем объект публикации для возврата клиенту
+            new_post = {
+                'id': post_id,
+                'content': content,
+                'tags': tags,
+                'created_at': datetime.datetime.utcnow().isoformat(),
+                'likesCount': 0,
+                'dislikesCount': 0
+            }
+
+            # Закрываем соединение с базой данных
+            cursor.close()
+            conn.close()
+
+            # Возвращаем информацию о созданной публикации
+            return jsonify(new_post), 200
+        else:
+            cursor.close()
+            conn.close()
+            return jsonify({'reason': 'Token expired'}), 401
+    else:
+        cursor.close()
+        conn.close()
+        return jsonify({'reason': 'Invalid token'}), 401
+
+
 
 # Функция для получения публикации по её идентификатору
 @app.route('/api/posts/<post_id>', methods=['GET'])
 def get_post_by_id(post_id):
-    # Здесь вы должны выполнить запрос к базе данных, чтобы получить информацию о публикации по её ID
-    # Для примера я просто сформирую фиктивный объект публикации
+    # Проверяем наличие заголовка Authorization
+    if 'Authorization' not in request.headers:
+        return jsonify({'reason': 'Missing Authorization header'}), 401
 
-    # Замените этот код на запрос к вашей базе данных
-    dummy_post = {
-        'id': post_id,
-        'content': 'Dummy content for post ' + post_id,
-        'author_id': 123,  # Фиктивный ID автора
-        'tags': ['tag1', 'tag2'],
-        'created_at': datetime.datetime.utcnow().isoformat(),
-        'likesCount': 10,
-        'dislikesCount': 2
-    }
+    # Получаем токен из заголовка Authorization
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(' ')[1]  # Получаем только сам токен, убирая 'Bearer '
 
-    # Возвращаем информацию о публикации
-    return jsonify(dummy_post), 200
+    # Подключаемся к базе данных
+    conn, cursor = connect_to_database()
+    cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+    user_data = cursor.fetchone()
+
+
+    if user_data:
+        user_id, created_at = user_data
+        if is_token_valid(created_at):
+
+
+
+            # Запрос к базе данных для получения информации о посте по его ID
+            cursor.execute(
+                "SELECT id, content, author, tags, created_at, likes_count, dislikes_count FROM posts WHERE id = %s",
+                (post_id,)
+            )
+            post_data = cursor.fetchone()
+
+
+            cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE id = %s",
+                           (user_id,))
+            user_account2 = cursor.fetchone()
+            if post_data:
+                cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE id = %s",
+                               (post_data[2],))
+                user_account = cursor.fetchone()
+                post = {
+                    'id': post_data[0],
+                    'content': post_data[1],
+                    'author_id': post_data[2],
+                    'tags': post_data[3],
+                    'created_at': post_data[4].isoformat(),
+                    'likesCount': post_data[5],
+                    'dislikesCount': post_data[6]
+                }
+                if user_account[3] or user_id == post_data[2]:  # Если профиль публичен
+                    cursor.close()
+                    conn.close()
+                    return jsonify(post), 200
+                else:
+                    # Проверка доступа к закрытому профилю
+
+                    cursor.execute("SELECT 1 FROM friends WHERE user_id = %s AND friend_login = %s",
+                                   (post_data[2], user_account2[0]))
+                    friend = cursor.fetchone()
+                    if friend:
+                        cursor.close()
+                        conn.close()
+                        return jsonify(post), 200
+                    else:
+                        cursor.close()
+                        conn.close()
+                        return jsonify({'reason': 'Access denied. Post is private.'}), 403
+            else:
+                cursor.close()
+                conn.close()
+                return jsonify({'reason': 'Post not found'}), 404
+        else:
+            cursor.close()
+            conn.close()
+            return jsonify({'reason': 'Token expired'}), 401
+    else:
+        cursor.close()
+        conn.close()
+        return jsonify({'reason': 'Invalid token'}), 401
+
+def get_user_posts(user_id, limit, offset):
+    conn, cursor = connect_to_database()
+    cursor.execute(
+        "SELECT id, content, tags, created_at, likes_count, dislikes_count FROM posts WHERE author = %s ORDER BY created_at DESC LIMIT %s OFFSET %s",
+        (user_id, limit, offset)
+    )
+    posts = []
+    for row in cursor.fetchall():
+        post = {
+            'id': row[0],
+            'content': row[1],
+            'tags': row[2].split(',') if row[2] else [],  # Преобразуем строку с тегами в список
+            'created_at': row[3].isoformat(),  # Преобразуем дату в строку в формате ISO
+            'likesCount': row[4],
+            'dislikesCount': row[5]
+        }
+        posts.append(post)
+    cursor.close()
+    conn.close()
+    return posts
+@app.route('/api/posts/feed/my', methods=['GET'])
+def get_my_feed():
+    conn = psycopg2.connect(POSTGRES_CONN)
+    cursor = conn.cursor()
+    # Проверяем наличие заголовка Authorization
+    if 'Authorization' not in request.headers:
+        return jsonify({'reason': 'Missing Authorization header'}), 401
+
+    # Получаем токен из заголовка Authorization
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(' ')[1]  # Получаем только сам токен, убирая 'Bearer '
+
+    # Получаем данные пользователя из базы данных
+    cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+    user_data = cursor.fetchone()
+
+    if user_data:
+        user_id, created_at = user_data
+        if is_token_valid(created_at):
+            if not user_id:
+                cursor.close()
+                conn.close()
+                return jsonify({'reason': 'Invalid token'}), 401
+
+            # Получаем параметры пагинации
+            limit = request.args.get('limit', default=5, type=int)
+            offset = request.args.get('offset', default=0, type=int)
+
+            # Получаем посты пользователя с пагинацией
+            posts = get_user_posts(user_id, limit, offset)
+            cursor.close()
+            conn.close()
+            return jsonify(posts), 200
+        else:
+            cursor.close()
+            conn.close()
+            return jsonify({'reason': 'Token expired'}), 401
+
+
+@app.route('/api/posts/feed/<login>', methods=['GET'])
+def get_user_feed(login):
+    # Проверяем наличие заголовка Authorization
+    if 'Authorization' not in request.headers:
+        return jsonify({'reason': 'Missing Authorization header'}), 401
+
+    # Получаем токен из заголовка Authorization
+    auth_header = request.headers['Authorization']
+    token = auth_header.split(' ')[1]  # Получаем только сам токен, убирая 'Bearer '
+
+    # Получаем данные пользователя из базы данных
+    user_id = get_user_id_from_token(token)
+    if not user_id:
+        return jsonify({'reason': 'Invalid token'}), 401
+
+    # Получаем данные о пользователе, чьи посты запрашиваются
+    target_user = get_user_by_login(login)
+    if not target_user:
+        return jsonify({'reason': 'User not found'}), 404
+
+    # Проверяем доступ к постам запрашиваемого пользователя
+    if not can_access_user_posts(user_id, target_user):
+        return jsonify({'reason': 'Access denied'}), 403
+
+    # Получаем параметры пагинации
+    limit = request.args.get('limit', default=5, type=int)
+    offset = request.args.get('offset', default=0, type=int)
+
+    # Получаем посты запрашиваемого пользователя с пагинацией
+    posts = get_user_posts(target_user['id'], limit, offset)
+
+    return jsonify(posts), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
