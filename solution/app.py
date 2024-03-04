@@ -981,6 +981,54 @@ def get_my_feed():
             return jsonify({'reason': 'Token expired'}), 401
 
 
+def get_user_id_from_token(token):
+    conn = psycopg2.connect(POSTGRES_CONN)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM tokens WHERE token = %s", (token,))
+    user_id = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return user_id[0] if user_id else None
+
+def get_user_by_login(login):
+    conn = psycopg2.connect(POSTGRES_CONN)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE login = %s", (login,))
+    user_data = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return user_data
+
+def can_access_user_posts(user_id, target_user):
+    # Проверяем, является ли профиль пользователя открытым или пользователь - владелец постов
+    if target_user[5]==True or user_id == target_user[0]:
+        return True
+
+    # Проверяем, есть ли пользователь в списке друзей у владельца постов
+    conn = psycopg2.connect(POSTGRES_CONN)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT login, email, country_code, is_public, phone, image FROM users WHERE id = %s",
+                   (user_id,))
+    user_account = cursor.fetchone()
+
+
+    cursor.execute("SELECT 1 FROM friends WHERE user_id = %s AND friend_login = %s",
+                   (target_user[0], user_account[0],))
+    friend = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    return friend is not None
+
+def get_user_posts(user_id, limit, offset):
+    conn = psycopg2.connect(POSTGRES_CONN)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM posts WHERE author = %s ORDER BY created_at DESC LIMIT %s OFFSET %s", (user_id, limit, offset,))
+    posts = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return posts
 @app.route('/api/posts/feed/<login>', methods=['GET'])
 def get_user_feed(login):
     # Проверяем наличие заголовка Authorization
@@ -1010,9 +1058,12 @@ def get_user_feed(login):
     offset = request.args.get('offset', default=0, type=int)
 
     # Получаем посты запрашиваемого пользователя с пагинацией
-    posts = get_user_posts(target_user['id'], limit, offset)
+    posts = get_user_posts(target_user[0], limit, offset)
 
     return jsonify(posts), 200
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
