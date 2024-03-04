@@ -654,9 +654,15 @@ def get_friends():
 
 
                     # Получение параметров пагинации
-                    limit = request.args.get('limit', default=10, type=int)
-                    offset = request.args.get('offset', default=0, type=int)
+                    limit = request.args.get('limit', default=5, type=int)
+                    if limit is not None:
+                        if not 0 < limit <= 50:
+                            return jsonify({'reason': 'Invalid limit value, must be between 1 and 50'}), 400
 
+                    offset = request.args.get('offset', default=0, type=int)
+                    if offset is not None:
+                        if offset < 0:
+                            return jsonify({'reason': 'Invalid offset value, must be non-negative'}), 400
                     # Получение списка друзей с учетом пагинации
                     cursor.execute("SELECT friend_login, added_at FROM friends WHERE user_id = %s ORDER BY added_at DESC LIMIT %s OFFSET %s", (user_id, limit, offset))
                     friends_data = cursor.fetchall()
@@ -968,7 +974,14 @@ def get_my_feed():
 
             # Получаем параметры пагинации
             limit = request.args.get('limit', default=5, type=int)
+            if limit is not None:
+                if not 0 < limit <= 50:
+                    return jsonify({'reason': 'Invalid limit value, must be between 1 and 50'}), 400
+
             offset = request.args.get('offset', default=0, type=int)
+            if offset is not None:
+                if offset < 0:
+                    return jsonify({'reason': 'Invalid offset value, must be non-negative'}), 400
 
             # Получаем посты пользователя с пагинацией
             posts = get_user_posts(user_id, limit, offset)
@@ -979,16 +992,33 @@ def get_my_feed():
             cursor.close()
             conn.close()
             return jsonify({'reason': 'Token expired'}), 401
-
+    else:
+        cursor.close()
+        conn.close()
+        return jsonify({'reason': 'Invalid token'}), 401
 
 def get_user_id_from_token(token):
     conn = psycopg2.connect(POSTGRES_CONN)
     cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM tokens WHERE token = %s", (token,))
-    user_id = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return user_id[0] if user_id else None
+
+    cursor.execute("SELECT user_id, created_at FROM tokens WHERE token = %s", (token,))
+    user_data = cursor.fetchone()
+    if user_data:
+        user_id, created_at = user_data
+        if is_token_valid(created_at):
+            user_id = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            return user_id[0] if user_id else None
+        else:
+            cursor.close()
+            conn.close()
+            return jsonify({'reason': 'Token expired'}), 401
+    else:
+        cursor.close()
+        conn.close()
+        return jsonify({'reason': 'Invalid token'}), 401
+
 
 def get_user_by_login(login):
     conn = psycopg2.connect(POSTGRES_CONN)
@@ -1055,7 +1085,14 @@ def get_user_feed(login):
 
     # Получаем параметры пагинации
     limit = request.args.get('limit', default=5, type=int)
+    if limit is not None:
+        if not 0 < limit <= 50:
+            return jsonify({'reason': 'Invalid limit value, must be between 1 and 50'}), 400
+
     offset = request.args.get('offset', default=0, type=int)
+    if offset is not None:
+        if offset < 0:
+            return jsonify({'reason': 'Invalid offset value, must be non-negative'}), 400
 
     # Получаем посты запрашиваемого пользователя с пагинацией
     posts = get_user_posts(target_user[0], limit, offset)
@@ -1063,7 +1100,113 @@ def get_user_feed(login):
     return jsonify(posts), 200
 
 
+@app.route('/api/posts/<postId>/like', methods=['POST'])
+def like_post(postId):
+    try:
+        conn = psycopg2.connect(POSTGRES_CONN)
+        cursor = conn.cursor()
 
+        # Получение ID пользователя из токена
+        user_id = get_user_id_from_token(request.headers.get('Authorization'))
+        if not user_id:
+            return jsonify({'reason': 'Invalid token'}), 401
+
+        # Проверка существования поста и доступа к нему
+        cursor.execute("SELECT * FROM posts WHERE id = %s", (postId,))
+        post = cursor.fetchone()
+        if not post:
+            cursor.close()
+            conn.close()
+            return jsonify({'reason': 'Post not found'}), 404
+        if post[2] == user_id:
+            cursor.close()
+            conn.close()
+            return jsonify({'reason': 'Cannot react to own post'}), 403
+
+        # Проверка, не ставил ли пользователь уже лайк к этому посту
+        cursor.execute("SELECT * FROM post_reactions WHERE post_id = %s AND user_id = %s", (postId, user_id))
+        existing_reaction = cursor.fetchone()
+        if existing_reaction:
+            if existing_reaction[2] == 'like':
+                # Если пользователь уже поставил лайк, то ничего не меняем
+                cursor.close()
+                conn.close()
+                return jsonify({'reason': 'Already liked'}), 200
+            else:
+                # Если пользователь поставил дизлайк, то заменяем его на лайк
+                cursor.execute("UPDATE post_reactions SET reaction_type = 'like' WHERE post_id = %s AND user_id = %s", (postId, user_id))
+                cursor.execute("UPDATE posts SET likes_count = likes_count + 1, dislikes_count = dislikes_count - 1 WHERE id = %s", (postId,))
+        else:
+            # Если пользователь еще не реагировал на пост, то добавляем его лайк
+            cursor.execute("INSERT INTO post_reactions (post_id, user_id, reaction_type) VALUES (%s, %s, 'like')", (postId, user_id))
+            cursor.execute("UPDATE posts SET likes_count = likes_count + 1 WHERE id = %s", (postId,))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True}), 200
+
+    except psycopg2.Error as e:
+        print("Database error:", e)
+        return jsonify({'reason': 'Database error'}), 500
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({'reason': 'Internal server error'}), 500
+
+
+# Функция для обработки дизлайка поста
+@app.route('/api/posts/<postId>/dislike', methods=['POST'])
+def dislike_post(postId):
+    try:
+        conn = psycopg2.connect(POSTGRES_CONN)
+        cursor = conn.cursor()
+
+        # Получение ID пользователя из токена
+        user_id = get_user_id_from_token(request.headers.get('Authorization'))
+        if not user_id:
+            return jsonify({'reason': 'Invalid token'}), 401
+
+        # Проверка существования поста и доступа к нему
+        cursor.execute("SELECT * FROM posts WHERE id = %s", (postId,))
+        post = cursor.fetchone()
+        if not post:
+            cursor.close()
+            conn.close()
+            return jsonify({'reason': 'Post not found'}), 404
+        if post[2] == user_id:
+            cursor.close()
+            conn.close()
+            return jsonify({'reason': 'Cannot react to own post'}), 403
+
+        # Проверка, не ставил ли пользователь уже дизлайк к этому посту
+        cursor.execute("SELECT * FROM post_reactions WHERE post_id = %s AND user_id = %s", (postId, user_id))
+        existing_reaction = cursor.fetchone()
+        if existing_reaction:
+            if existing_reaction[2] == 'dislike':
+                # Если пользователь уже поставил дизлайк, то ничего не меняем
+                cursor.close()
+                conn.close()
+                return jsonify({'reason': 'Already disliked'}), 200
+            else:
+                # Если пользователь поставил лайк, то заменяем его на дизлайк
+                cursor.execute("UPDATE post_reactions SET reaction_type = 'dislike' WHERE post_id = %s AND user_id = %s", (postId, user_id))
+                cursor.execute("UPDATE posts SET dislikes_count = dislikes_count + 1, likes_count = likes_count - 1 WHERE id = %s", (postId,))
+        else:
+            # Если пользователь еще не реагировал на пост, то добавляем его дизлайк
+            cursor.execute("INSERT INTO post_reactions (post_id, user_id, reaction_type) VALUES (%s, %s, 'dislike')", (postId, user_id))
+            cursor.execute("UPDATE posts SET dislikes_count = dislikes_count + 1 WHERE id = %s", (postId,))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True}), 200
+
+    except psycopg2.Error as e:
+        print("Database error:", e)
+        return jsonify({'reason': 'Database error'}), 500
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({'reason': 'Internal server error'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
