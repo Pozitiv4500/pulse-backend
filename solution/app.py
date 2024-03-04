@@ -1005,19 +1005,20 @@ def get_user_id_from_token(token):
     user_data = cursor.fetchone()
     if user_data:
         user_id, created_at = user_data
+
         if is_token_valid(created_at):
-            user_id = cursor.fetchone()
             cursor.close()
             conn.close()
-            return user_id[0] if user_id else None
+
+            return user_id
         else:
             cursor.close()
             conn.close()
-            return jsonify({'reason': 'Token expired'}), 401
+            return None
     else:
         cursor.close()
         conn.close()
-        return jsonify({'reason': 'Invalid token'}), 401
+        return None
 
 
 def get_user_by_login(login):
@@ -1107,10 +1108,11 @@ def like_post(postId):
         cursor = conn.cursor()
 
         # Получение ID пользователя из токена
-        user_id = get_user_id_from_token(request.headers.get('Authorization'))
+        token = request.headers.get('Authorization').split(' ')[1]
+        user_id = get_user_id_from_token(token)
         if not user_id:
             return jsonify({'reason': 'Invalid token'}), 401
-
+        print(1)
         # Проверка существования поста и доступа к нему
         cursor.execute("SELECT * FROM posts WHERE id = %s", (postId,))
         post = cursor.fetchone()
@@ -1141,10 +1143,21 @@ def like_post(postId):
             cursor.execute("INSERT INTO post_reactions (post_id, user_id, reaction_type) VALUES (%s, %s, 'like')", (postId, user_id))
             cursor.execute("UPDATE posts SET likes_count = likes_count + 1 WHERE id = %s", (postId,))
 
+        cursor.execute("SELECT id, content, tags, created_at, likes_count, dislikes_count FROM posts WHERE id = %s",
+                       (postId,))
+        row = cursor.fetchone()
+        post = {
+            'id': row[0],
+            'content': row[1],
+            'tags': row[2].split(',') if row[2] else [],  # Преобразуем строку с тегами в список
+            'created_at': row[3].isoformat(),  # Преобразуем дату в строку в формате ISO
+            'likesCount': row[4],
+            'dislikesCount': row[5]
+        }
         conn.commit()
         cursor.close()
         conn.close()
-        return jsonify({'success': True}), 200
+        return jsonify(post), 200
 
     except psycopg2.Error as e:
         print("Database error:", e)
@@ -1162,7 +1175,8 @@ def dislike_post(postId):
         cursor = conn.cursor()
 
         # Получение ID пользователя из токена
-        user_id = get_user_id_from_token(request.headers.get('Authorization'))
+        token = request.headers.get('Authorization').split(' ')[1]
+        user_id = get_user_id_from_token(token)
         if not user_id:
             return jsonify({'reason': 'Invalid token'}), 401
 
@@ -1196,10 +1210,21 @@ def dislike_post(postId):
             cursor.execute("INSERT INTO post_reactions (post_id, user_id, reaction_type) VALUES (%s, %s, 'dislike')", (postId, user_id))
             cursor.execute("UPDATE posts SET dislikes_count = dislikes_count + 1 WHERE id = %s", (postId,))
 
+        cursor.execute("SELECT id, content, tags, created_at, likes_count, dislikes_count FROM posts WHERE id = %s",
+                       (postId,))
+        row = cursor.fetchone()
+        post = {
+            'id': row[0],
+            'content': row[1],
+            'tags': row[2].split(',') if row[2] else [],  # Преобразуем строку с тегами в список
+            'created_at': row[3].isoformat(),  # Преобразуем дату в строку в формате ISO
+            'likesCount': row[4],
+            'dislikesCount': row[5]
+        }
         conn.commit()
         cursor.close()
         conn.close()
-        return jsonify({'success': True}), 200
+        return jsonify(post), 200
 
     except psycopg2.Error as e:
         print("Database error:", e)
