@@ -784,9 +784,10 @@ def connect_to_database():
 def insert_post_to_database(post_id, content, author_id, tags):
     import datetime
     conn, cursor = connect_to_database()
+    print(tags)
     cursor.execute(
-        "INSERT INTO posts (id, content, author, tags, created_at) VALUES (%s, %s, %s, %s, %s)",
-        (post_id, content, author_id, tags, datetime.datetime.utcnow())
+        "INSERT INTO posts (id, content, author, tags) VALUES (%s, %s, %s, %s)",
+        (post_id, content, author_id, tags)
     )
     conn.commit()
     cursor.close()
@@ -935,11 +936,14 @@ def get_user_posts(user_id, limit, offset):
         (user_id, limit, offset)
     )
     posts = []
+
     for row in cursor.fetchall():
+        if row[2]:
+            data123 = row[2].replace('{', '').replace('}', '')
         post = {
             'id': row[0],
             'content': row[1],
-            'tags': row[2].split(',') if row[2] else [],  # Преобразуем строку с тегами в список
+            'tags': data123.split(',') if row[2] else [],  # Преобразуем строку с тегами в список
             'created_at': row[3].isoformat(),  # Преобразуем дату в строку в формате ISO
             'likesCount': row[4],
             'dislikesCount': row[5]
@@ -1052,14 +1056,7 @@ def can_access_user_posts(user_id, target_user):
 
     return friend is not None
 
-def get_user_posts(user_id, limit, offset):
-    conn = psycopg2.connect(POSTGRES_CONN)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM posts WHERE author = %s ORDER BY created_at DESC LIMIT %s OFFSET %s", (user_id, limit, offset,))
-    posts = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return posts
+
 @app.route('/api/posts/feed/<login>', methods=['GET'])
 def get_user_feed(login):
     # Проверяем наличие заголовка Authorization
@@ -1112,7 +1109,7 @@ def like_post(postId):
         user_id = get_user_id_from_token(token)
         if not user_id:
             return jsonify({'reason': 'Invalid token'}), 401
-        print(1)
+
         # Проверка существования поста и доступа к нему
         cursor.execute("SELECT * FROM posts WHERE id = %s", (postId,))
         post = cursor.fetchone()
@@ -1146,10 +1143,12 @@ def like_post(postId):
         cursor.execute("SELECT id, content, tags, created_at, likes_count, dislikes_count FROM posts WHERE id = %s",
                        (postId,))
         row = cursor.fetchone()
+        if row[2]:
+            data123 = row[2].replace('{', '').replace('}', '')
         post = {
             'id': row[0],
             'content': row[1],
-            'tags': row[2].split(',') if row[2] else [],  # Преобразуем строку с тегами в список
+            'tags': data123.split(',') if row[2] else [],  # Преобразуем строку с тегами в список
             'created_at': row[3].isoformat(),  # Преобразуем дату в строку в формате ISO
             'likesCount': row[4],
             'dislikesCount': row[5]
@@ -1213,10 +1212,12 @@ def dislike_post(postId):
         cursor.execute("SELECT id, content, tags, created_at, likes_count, dislikes_count FROM posts WHERE id = %s",
                        (postId,))
         row = cursor.fetchone()
+        if row[2]:
+            data123 = row[2].replace('{', '').replace('}', '')
         post = {
             'id': row[0],
             'content': row[1],
-            'tags': row[2].split(',') if row[2] else [],  # Преобразуем строку с тегами в список
+            'tags': data123.split(',') if row[2] else [],  # Преобразуем строку с тегами в список
             'created_at': row[3].isoformat(),  # Преобразуем дату в строку в формате ISO
             'likesCount': row[4],
             'dislikesCount': row[5]
