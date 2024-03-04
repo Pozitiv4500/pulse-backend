@@ -156,12 +156,14 @@ def register():
         return jsonify({'error': 'Invalid country code'}), 400
 
     # Проверка номера телефона
-    if 'phone' in data:
-        if not re.match(r"\+[\d]{1,20}", data['phone']):
-            cursor.close()
-            conn.close()
-            return jsonify({'error': 'Invalid phone number format'}), 400
-
+    if len(data['phone']) > 20:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid phone number format'}), 400
+    if len(data['phone']) < 1:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid phone number format'}), 400
     # Проверка длины ссылки на изображение
     if 'image' in data:
         if len(data['image']) > 200:
