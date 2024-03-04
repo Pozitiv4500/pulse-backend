@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS friends (
     FOREIGN KEY (user_id) REFERENCES users(id),
     CONSTRAINT unique_friend UNIQUE (user_id, friend_login)
 );
-CREATE TABLE posts (
+CREATE TABLE IF NOT EXISTS posts (
     id VARCHAR(100) PRIMARY KEY,
     content VARCHAR(1000) NOT NULL,
     author INTEGER REFERENCES users(id) NOT NULL,
@@ -53,6 +53,12 @@ CREATE TABLE posts (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     likes_count INTEGER DEFAULT 0,
     dislikes_count INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS post_reactions (
+    post_id VARCHAR(100) REFERENCES posts(id) NOT NULL,
+    user_id INTEGER REFERENCES users(id) NOT NULL,
+    reaction_type VARCHAR(10) CHECK (reaction_type IN ('like', 'dislike')),
+    PRIMARY KEY (post_id, user_id)
 );
 '''
 
@@ -137,52 +143,52 @@ def register():
             return jsonify({'error': 'Phone number already exists'}), 409
 
     # Проверка пароля
-    if not re.match(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{6,100}$", data['password']):
+    # if not re.match(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{6,100}$", data['password']):
+    #     cursor.close()
+    #     conn.close()
+    #     return jsonify({'error': 'Password does not meet the requirements'}), 400
+
+    # Проверка логина верно
+    if not re.match(r"^[a-zA-Z0-9-]{1,30}$", data['login']):
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Password does not meet the requirements'}), 400
+        return jsonify({'error': 'Invalid login format'}), 400
 
-    # Проверка логина
-    # if not re.match(r"^[a-zA-Z0-9-]{1,30}$", data['login']):
-    #     cursor.close()
-    #     conn.close()
-    #     return jsonify({'error': 'Invalid login format'}), 400
-    #
-    # # Проверка email
-    # if len(data['email']) > 50:
-    #     cursor.close()
-    #     conn.close()
-    #     return jsonify({'error': 'Invalid email format'}), 400
-    # if len(data['email']) < 1:
-    #     cursor.close()
-    #     conn.close()
-    #     return jsonify({'error': 'Invalid email format'}), 400
-    # # Проверка кода страны
-    # cursor.execute("SELECT name FROM countries WHERE alpha2 = %s", (data['countryCode'],))
-    # if not cursor.fetchone():
-    #     cursor.close()
-    #     conn.close()
-    #     return jsonify({'error': 'Invalid country code'}), 400
-    #
-    # # Проверка номера телефона
-    # if len(data['phone']) > 20:
-    #     cursor.close()
-    #     conn.close()
-    #     return jsonify({'error': 'Invalid phone number format'}), 400
-    # if len(data['phone']) < 1:
-    #     cursor.close()
-    #     conn.close()
-    #     return jsonify({'error': 'Invalid phone number format'}), 400
-    # # Проверка длины ссылки на изображение
-    # if 'image' in data:
-    #     if len(data['image']) > 200:
-    #         cursor.close()
-    #         conn.close()
-    #         return jsonify({'error': 'Image URL exceeds the maximum length'}), 400
-    #     if len(data['image']) < 1:
-    #         cursor.close()
-    #         conn.close()
-    #         return jsonify({'error': 'Image URL is too short'}), 400
+    # Проверка email
+    if len(data['email']) > 50:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid email format'}), 400
+    if len(data['email']) < 1:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid email format'}), 400
+    # Проверка кода страны
+    cursor.execute("SELECT name FROM countries WHERE alpha2 = %s", (data['countryCode'],))
+    if not cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid country code'}), 400
+
+    # Проверка номера телефона
+    if len(data['phone']) > 20:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid phone number format'}), 400
+    if len(data['phone']) < 1:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid phone number format'}), 400
+    # Проверка длины ссылки на изображение
+    if 'image' in data:
+        if len(data['image']) > 200:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Image URL exceeds the maximum length'}), 400
+        if len(data['image']) < 1:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Image URL is too short'}), 400
 
     # Хеширование пароля
     hashed_password = hashlib.sha256(data['password'].encode('utf-8')).hexdigest()
