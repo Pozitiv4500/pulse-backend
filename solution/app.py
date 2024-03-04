@@ -323,7 +323,7 @@ def me_profile():
                     else:
                         cursor.close()
                         conn.close()
-                        return jsonify({'reason': 'User not found'}), 406
+                        return jsonify({'reason': 'User not found'}), 404
                 else:
                     cursor.close()
                     conn.close()
@@ -373,7 +373,7 @@ def me_profile():
                         else:
                             cursor.close()
                             conn.close()
-                            return jsonify({'reason': 'User not found'}), 405
+                            return jsonify({'reason': 'User not found'}), 404
                     else:
                         cursor.close()
                         conn.close()
